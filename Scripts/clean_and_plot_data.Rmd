@@ -39,17 +39,23 @@ Load the excel sheets containing the data here. Edit the values between the #s t
 
 #Name of the file to be read, including the extension (.xls or .xlsx)
 #Make sure the file is saved under the "Raw Data" directory.
-file = "AMG + Radiation, JHUEM2, Hec108, Hec1B, 5-7-21.xlsx"
+file = "JHUEM2 WT, variant + Nutlin, Radiation, 4-28-21.xlsx"
 
 #Name of the sheet within the file that is associated with each experiment
 #Note that the order the data are put in here should be maintained for all of the subsequent vectors.
-sheet_name = c("JHUEM2", "Hec108", "Hec1B")
+#sheet_name = c("JHUEM2", "Hec108", "Hec1B")
+sheet_name = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
 
 #What each table should be referred to as in the script.
-variable_names = c("jhuem2", "hec108", "hec18b")
+#variable_names = c("jhuem2", "hec108", "hec18b")
+variable_names = c("ntc_mch", "ntc_r", "ko_r")
 
 #What the plots + processed files should be titled.
-plot_titles = c("AMG+Rad - JHUEM2", "AMG+Rad - Hec108", "AMG+Rad - Hec1B")
+plot_titles = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
+
+#Determine how far the x- and y- axes should extend for all of the plots.
+xlimit= 10 #1 for AMG, 10 for nutlin
+ylimit= 2 #4 for AMG and for nutlin (2 for the smaller dataset)
 
 ################### STOP EDITING ###################
 
@@ -117,8 +123,8 @@ nutlin_doses = as.numeric(nutlin_doses)
 ```{r plot}
 plot_isobologram = function(data, #data to interpolate and plot
                             plot_title="Isobologram", #Specify a title for the plot
-                            xlimit=max(nutlin_doses),#Specify how far along the x axis to plot
-                            ylimit=max(rad_doses)){ #Specify how far along the y axis to plot
+                            xlimit=xlimit,#Specify how far along the x axis to plot
+                            ylimit=ylimit){ #Specify how far along the y axis to plot
   
   
   #Using the Akima package, we will interpolate the data.
@@ -152,20 +158,8 @@ plot_isobologram = function(data, #data to interpolate and plot
 
 ## Plot all the isobolograms with the same axis ranges (maximum nutlin & rad dose)
 for(i in 1:length(data)){
-  plot_isobologram(data=data[[i]], plot_title=plot_titles[i])
+  plot_isobologram(data=data[[i]], plot_title=plot_titles[i], xlimit=xlimit, ylimit=ylimit)
 }
-
-# OR #
-## Plot each experiment, with specific x- and y-axis limits for each
-# plot_isobologram(data=data[[1]], plot_title=sheet_name[1], xlimit=10) #NTC+MCherry
-# plot_isobologram(data=data[[2]], plot_title=sheet_name[2], xlimit=25) #NTC+R273C
-# plot_isobologram(data=data[[3]], plot_title=sheet_name[3], xlimit=100) #NTC+KO
-
-plot_isobologram(data=data[[1]], plot_title=plot_titles[1], xlimit=0.75, ylimit=4) #JHUEM2
-
-# plot_isobologram(data=data[[1]], plot_title=plot_titles[1], xlimit=5, ylimit= 4) #JHUEM2
-# plot_isobologram(data=data[[2]], plot_title=plot_titles[2], xlimit=45) #Hec108
-# plot_isobologram(data=data[[3]], plot_title=plot_titles[3], xlimit=100) #Hec18b
 
 ```
 
