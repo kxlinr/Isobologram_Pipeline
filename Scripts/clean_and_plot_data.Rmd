@@ -1,0 +1,170 @@
+---
+title: "Isobologram Pipeline"
+author: "Kristi Lin-Rahardja"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: 'cosmo' #"default", "cerulean", "journal", "flatly", "darkly", "readable", "spacelab", "united", "cosmo", "lumen", "paper", "sandstone", "simplex", "yeti"
+    highlight: 'tango' #"default", "tango", "pygments", "kate", "monochrome", "espresso", "zenburn", "haddock", "breezedark", "textmate"
+    df_print: 'paged'
+    number_sections: no
+    toc: yes
+    ttoc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup {.tabset}
+
+## Libraries
+
+```{r lib}
+library(readxl); library(here)
+library(BIGL); library(drc)
+library(tidyr); library(dplyr)
+library(ggplot2); library(akima); library(metR); library(RColorBrewer)
+```
+
+## Load Data
+
+Load the excel sheets containing the data here. Edit the values between the #s to match the experimental parameters/information.
+
+*[**experiment**] = as.data.frame(read_xlsx("../Raw Data/[**FILENAME**].xlsx", sheet = "[**experiment**]"))*
+
+```{r load}
+##################### EDIT HERE #####################
+
+#Name of the file to be read, including the extension (.xls or .xlsx)
+#Make sure the file is saved under the "Raw Data" directory.
+#file = "JHUEM2 WT, variant + Nutlin, Radiation, 4-28-21.xlsx"
+file = "Nutlin + Radiation, JHUEM2, Hec108, Hec1B, 5-14-21.xlsx"
+#file = "AMG + Radiation, JHUEM2, Hec108, Hec1B, 5-7-21.xlsx"
+
+#Name of the sheet within the file that is associated with each experiment
+#Note that the order the data are put in here should be maintained for all of the subsequent vectors.
+#sheet_name = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
+sheet_name = c("JHUEM2", "Hec108", "Hec1B")
+
+#What each table should be referred to as in the script.
+#variable_names = c("ntc_mch", "ntc_r", "ko_r")
+variable_names = c("jhuem2", "hec108", "hec18b")
+
+#What the plots + processed files should be titled.
+#plot_titles = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
+plot_titles = c("Nutlin+Rad - JHUEM2", "Nutlin+Rad - Hec108", "Nutlin+Rad - Hec18b")
+#plot_titles = c("AMG+Rad - JHUEM2", "AMG+Rad - Hec108", "AMG+Rad - Hec1B")
+
+#Determine how far the x- and y- axes should extend for all of the plots.
+xlimit= 10 #1 for AMG, 10 for nutlin
+ylimit= 4 #4 for AMG and for nutlin (2 for the smaller dataset)
+
+################### STOP EDITING ###################
+
+
+data = list() #Create an empty list to fill with the data
+
+#Loop through each of the sheets within the excel file and store the table in an element within the list
+for (i in 1:length(sheet_name)){
+  data[[i]] = read_xlsx(paste0("../Raw Data/", file), sheet = sheet_name[i])
+}
+names(data) = variable_names #Label each of the sheets' data with the appropriate experiment name
+
+```
+
+
+# Reformat Data {.tabset}
+
+## Clean
+
+```{r clean}
+#Extract the nutlin doses into a new vector using the column names of the table. Use one data frame, all three here are the same anyway.
+nutlin_doses = as.vector(colnames(data[[1]]))
+nutlin_doses = nutlin_doses[-1] #remove the first value, because it's not a concentration ("...1")
+
+#Extract the radiation doses using the first column of the table. Use one data frame, all three here are the same anyway.
+rad_doses = as.matrix(data[[1]][,1])
+rad_doses = as.vector(rad_doses)
+
+#Change to long format
+for(i in 1:length(data)){ #go through each table in the data list
+  #pivot the table
+  data[[i]] <- data[[i]] %>% 
+    pivot_longer(nutlin_doses, names_to = "Nutlin", values_to = "Cell Death")
+  #rename the columns so they make sense
+  colnames(data[[i]]) = c("Radiation", "Nutlin", "Cell Death")
+  #make the nutlin column numeric
+  data[[i]][["Nutlin"]] = as.numeric(data[[i]][["Nutlin"]])
+  
+  #Save the cleaned data
+  write.table(data[[i]], paste0("../Processed Data/Cleaned ", plot_titles[i], " - Raw Data.xlsx"))
+}
+
+
+```
+
+## Convert Values
+
+```{r convert}
+#Convert values from Survival to Death, normalizing to the highest readout per plate
+for(i in 1:length(data)){
+  data[[i]]$`Cell Death` = 1 - (data[[i]]$`Cell Death` / max(data[[i]]$`Cell Death`))
+  
+  #Save the converted data
+  write.table(data[[i]], paste0("../Processed Data/Converted ", plot_titles[i], " Data.xlsx"))
+}
+
+#Convert the nutlin doses to numerics (rather than characters)
+nutlin_doses = as.numeric(nutlin_doses)
+```
+
+
+
+# Interpolate + Plot Contour/Heatmap
+
+```{r plot}
+plot_isobologram = function(data, #data to interpolate and plot
+                            plot_title="Isobologram", #Specify a title for the plot
+                            xlimit=xlimit,#Specify how far along the x axis to plot
+                            ylimit=ylimit){ #Specify how far along the y axis to plot
+  
+  
+  #Using the Akima package, we will interpolate the data.
+  interpolated_raw = interp(x=(data$Nutlin), y=(data$Radiation), z=(data$`Cell Death`), nx=500)
+  interpolated_to_plot = data.frame(x = rep(interpolated_raw$x, ncol(interpolated_raw$z)),
+                        y = rep(interpolated_raw$y, each = nrow(interpolated_raw$z)),
+                       z = as.numeric(interpolated_raw$z))
+
+  #Plot the interpolated data
+  ggplot(data = interpolated_to_plot, #select the data to plot and define the axes
+         aes(x = x, y = y, z = z)) +
+    
+    geom_tile(aes(fill = z)) + #Plot the heatmap using the z values (Cell Death)
+    geom_contour(colour="white") + #Add contour lines
+    geom_text_contour(aes(z = z), stroke = 0.1, skip=0) + #Label the contour lines with associated z values
+
+    scale_x_continuous(breaks=seq(from=0, to=xlimit, by=0.5), limits=c(0, xlimit)) + #set how many tick marks appear on each axis; set axis limits
+      #for AMG, set by=0.1; for nutlin, set by=0.5
+    scale_y_continuous(breaks=seq(0, ylimit, 0.5), limits=c(0, ylimit)) + #AMG and new nutlin: by=0.5; old nutlin: by=0.25
+    
+    scale_fill_gradient(high="red",low="blue") + #Set heatmap color scheme
+    
+    guides(fill = guide_colorbar(title = "Cell Death")) + #Define plot labels
+    ggtitle(paste(plot_title)) + 
+    xlab("Nutlin (uM)") +
+    ylab("Radiation (Gy)")
+    
+  ggsave(paste0("../Plots/", plot_title, " Isobologram.png"), width=12, height=7)
+}
+
+
+## Plot all the isobolograms with the same axis ranges (maximum nutlin & rad dose)
+for(i in 1:length(data)){
+  plot_isobologram(data=data[[i]], plot_title=plot_titles[i], xlimit=xlimit, ylimit=ylimit)
+}
+
+```
+
+
