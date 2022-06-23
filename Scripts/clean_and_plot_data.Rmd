@@ -30,40 +30,55 @@ library(ggplot2); library(akima); library(metR); library(RColorBrewer)
 
 ## Load Data
 
-Load the excel sheets containing the data here. Edit the values between the #s to match the experimental parameters/information.
+Load the excel sheets containing the data here. Run one of the three chunks below.
 
 *[**experiment**] = as.data.frame(read_xlsx("../Raw Data/[**FILENAME**].xlsx", sheet = "[**experiment**]"))*
 
 ```{r load}
-##################### EDIT HERE #####################
-
 #Name of the file to be read, including the extension (.xls or .xlsx)
 #Make sure the file is saved under the "Raw Data" directory.
-#file = "JHUEM2 WT, variant + Nutlin, Radiation, 4-28-21.xlsx"
 file = "Nutlin + Radiation, JHUEM2, Hec108, Hec1B, 5-14-21.xlsx"
-#file = "AMG + Radiation, JHUEM2, Hec108, Hec1B, 5-7-21.xlsx"
 
 #Name of the sheet within the file that is associated with each experiment
 #Note that the order the data are put in here should be maintained for all of the subsequent vectors.
-#sheet_name = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
 sheet_name = c("JHUEM2", "Hec108", "Hec1B")
 
 #What each table should be referred to as in the script.
-#variable_names = c("ntc_mch", "ntc_r", "ko_r")
-variable_names = c("jhuem2", "hec108", "hec18b")
+variable_names = c("jhuem2", "hec108", "hec1b")
 
 #What the plots + processed files should be titled.
-#plot_titles = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
-plot_titles = c("Nutlin+Rad - JHUEM2", "Nutlin+Rad - Hec108", "Nutlin+Rad - Hec18b")
-#plot_titles = c("AMG+Rad - JHUEM2", "AMG+Rad - Hec108", "AMG+Rad - Hec1B")
+plot_titles = c("Nutlin+Rad - JHUEM2", "Nutlin+Rad - Hec108", "Nutlin+Rad - Hec1b")
 
 #Determine how far the x- and y- axes should extend for all of the plots.
+xlimit= 10
+ylimit= 4
+```
+
+```{r}
+file = "JHUEM2 WT, variant + Nutlin, Radiation, 4-28-21.xlsx"
+sheet_name = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
+variable_names = c("ntc_mch", "ntc_r", "ko_r")
+plot_titles = c("NTC + mCherry", "NTC + R273C", "KO + R273C")
+
 xlimit= 10 #1 for AMG, 10 for nutlin
-ylimit= 4 #4 for AMG and for nutlin (2 for the smaller dataset)
+ylimit= 2
+```
 
-################### STOP EDITING ###################
+```{r}
+file = "AMG + Radiation, JHUEM2, Hec108, Hec1B, 5-7-21.xlsx"
+sheet_name = c("JHUEM2", "Hec108", "Hec1B")
+variable_names = c("jhuem2", "hec108", "hec1b")
+plot_titles = c("AMG+Rad - JHUEM2", "AMG+Rad - Hec108", "AMG+Rad - Hec1B")
+
+xlimit= 1
+ylimit= 4
+```
 
 
+
+
+
+```{r load}
 data = list() #Create an empty list to fill with the data
 
 #Loop through each of the sheets within the excel file and store the table in an element within the list
@@ -124,7 +139,7 @@ nutlin_doses = as.numeric(nutlin_doses)
 
 # Interpolate + Plot Contour/Heatmap
 
-```{r plot}
+```{r plot_fx}
 plot_isobologram = function(data, #data to interpolate and plot
                             plot_title="Isobologram", #Specify a title for the plot
                             xlimit=xlimit,#Specify how far along the x axis to plot
@@ -143,23 +158,32 @@ plot_isobologram = function(data, #data to interpolate and plot
     
     geom_tile(aes(fill = z)) + #Plot the heatmap using the z values (Cell Death)
     geom_contour(colour="white") + #Add contour lines
-    geom_text_contour(aes(z = z), stroke = 0.1, skip=0) + #Label the contour lines with associated z values
+    geom_text_contour(aes(z = z), stroke = 0.1, skip=0, size=5,
+                      check_overlap = TRUE) + #Label the contour lines with associated z values
 
-    scale_x_continuous(breaks=seq(from=0, to=xlimit, by=0.5), limits=c(0, xlimit)) + #set how many tick marks appear on each axis; set axis limits
+    scale_x_continuous(breaks=seq(from=0, to=xlimit, by=0.5), limits=c(0, xlimit),
+                       expand = c(0,0)) + #set how many tick marks appear on each axis; set axis limits
       #for AMG, set by=0.1; for nutlin, set by=0.5
-    scale_y_continuous(breaks=seq(0, ylimit, 0.5), limits=c(0, ylimit)) + #AMG and new nutlin: by=0.5; old nutlin: by=0.25
+    scale_y_continuous(breaks=seq(0, ylimit, 0.5), limits=c(0, ylimit),
+                       expand = c(0,0)) + #AMG and new nutlin: by=0.5; old nutlin: by=0.25
     
     scale_fill_gradient(high="red",low="blue") + #Set heatmap color scheme
     
     guides(fill = guide_colorbar(title = "Cell Death")) + #Define plot labels
-    ggtitle(paste(plot_title)) + 
-    xlab("Nutlin (uM)") +
+    ggtitle(paste(plot_title)) +
+    theme(plot.title = element_text(hjust = 0.5, size=20),
+          axis.text=element_text(size=15),
+          axis.title=element_text(size=15),
+          )+
+    xlab("Nutlin (uM)") + #Change this depending on the data being run!
     ylab("Radiation (Gy)")
     
   ggsave(paste0("../Plots/", plot_title, " Isobologram.png"), width=12, height=7)
 }
+```
 
 
+```{r plot}
 ## Plot all the isobolograms with the same axis ranges (maximum nutlin & rad dose)
 for(i in 1:length(data)){
   plot_isobologram(data=data[[i]], plot_title=plot_titles[i], xlimit=xlimit, ylimit=ylimit)
